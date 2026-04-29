@@ -1,0 +1,20 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 本地临时
+*.log
+*.tmp
+.cache/
+node_modules/
+__pycache__/
+.venv/
+
+# 子 repo 平铺目录（各 repo 独立 clone，不纳入本仓库追踪）
+/repos/*
+!/repos/.gitkeep

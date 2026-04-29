@@ -1,0 +1,17 @@
+version: '3'
+
+# 顶层 task 入口。新增子 repo 时，向 includes 块追加：
+#
+#   includes:
+#     <name>:
+#       taskfile: ./taskfiles/<name>.yml
+#       dir: ./repos/<name>
+#
+# 然后即可 `task <name>:<cmd>` 在 repos/<name>/ 下执行该 repo 的命令。
+
+tasks:
+  default:
+    desc: 列出所有可用任务
+    cmds:
+      - task --list
+    silent: true

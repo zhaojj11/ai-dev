@@ -1,0 +1,8 @@
+# ai-dev 工作空间 repos 索引
+#
+# repo:
+#   name           : 仓库标识（短名，唯一）
+#   path           : 相对路径
+#   url            : git remote origin
+#   default_branch : 默认分支
+#   language       : 主语言数组（go|java|kotlin|typescript|markdown|yaml|...）
