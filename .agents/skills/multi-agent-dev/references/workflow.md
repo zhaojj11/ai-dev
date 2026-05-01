@@ -1,59 +1,121 @@
-# 工作流规则
+---
+name: workflow-rules
+---
 
-## 状态机
+# Workflow Rules and Scoring Protocol (v2)
+
+## Status Transitions
 
 ```
-pending → product → product_review → dev → dev_review → done
-             ↑            ↓             ↑          ↓
-             └─────(<90)─┘             └───(<90)──┘
+pending
+  → brainstorm (Scheduler decides creative work)
+  → plan (Scheduler decides simple task)
+  → debug (Scheduler decides bug fix)
+
+brainstorm
+  → brainstorm_review (Brainstormer writes design.md)
+
+brainstorm_review
+  → plan (Spec-Reviewer PASS)
+  → brainstorm (Spec-Reviewer FAIL, <3 tries)
+  → plan (force-pass, annotated risk, 3rd try)
+
+plan
+  → plan_review (Planner writes plan.md)
+
+plan_review
+  → dev (Spec-Reviewer PASS)
+  → plan (Spec-Reviewer FAIL, <3 tries)
+  → dev (force-pass, annotated risk, 3rd try)
+
+dev
+  → dev_review (Developer implements)
+
+dev_review
+  → done (Dual-Reviewer PROCEED)
+  → debug (bug found)
+  → dev (Dual-Reviewer FIX-CRITICAL/FIX-ALL, <3 tries)
+  → done (force-pass, annotated risk, 3rd try)
+
+done
+  → closed (Finishing Branch executed)
 ```
 
-| 状态 | 含义 | 活跃角色 |
-|------|------|----------|
-| `pending` | 刚创建，等待调度者分析 | scheduler |
-| `product` | 等待/正在进行需求分析 | product |
-| `product_review` | 等待/正在评审产品产出 | reviewer |
-| `dev` | 等待/正在进行开发 | developer |
-| `dev_review` | 等待/正在评审开发产出 | reviewer |
-| `done` | 已完成，归档 | — |
+## Spec-Reviewer Verdict Rules
 
-## 评分规则（Reviewer 核心）
+| Dimension | Weight | Verdict |
+|-----------|--------|---------|
+| Completeness | Equal | PASS/FAIL |
+| Accuracy | Equal | PASS/FAIL |
+| Executability | Equal | PASS/FAIL |
+| Simplicity | Equal | PASS/FAIL |
 
-- **评分维度**：完整性(30) + 准确性(30) + 可执行性(20) + 简洁性(20) = **100 分**
-- **通过阈值**：**≥ 90 分** 可进入下一阶段
-- **驳回上限**：同一阶段最多驳回 **2 次**，第 3 次强制通过并由 reviewer 在 handoff 中标注风险
-- **评分记录**：每次评分必须写入 `handoff/reviewer.md`，包含分数、维度拆解、通过/驳回结论
+- ALL PASS → overall PASS
+- ANY FAIL → overall FAIL
+- 3rd rejection → force-pass, annotate risk
 
-## Handoff 协议
+## Quality-Reviewer Verdict Rules
 
-1. **只写自己的文件**：各角色只写 `handoff/<role>.md`。
-2. **状态原子更新**：角色完成产出后，将 `status` 更新为下一个阶段（product → product_review，dev → dev_review）。
-3. **Reviewer 拥有状态最终决定权**：reviewer 完成评分后，根据分数更新 `status`：
-   - ≥ 90：`product_review → dev` 或 `dev_review → done`
-   - < 90：`product_review → product` 或 `dev_review → dev`
-4. **追加而非覆盖**：handoff 文件按时间顺序追加记录，保留完整评分历史。
+| Severity | Action | Block? |
+|----------|--------|--------|
+| Critical | Must fix | Yes |
+| Important | Should fix | Judgment (>3 = block) |
+| Minor | Note for later | No |
 
-## Handoff 记录格式
+- No Critical + ≤3 Important → PROCEED
+- Has Critical → FIX-CRITICAL
+- Many Important → FIX-ALL
 
-```markdown
-## [<timestamp>] <action>
+## Dual-Reviewer Combined Rules
 
-### 输入
-- 来源：<role>
-- 内容摘要：<一句话>
-
-### 思考
-<推理过程>
-
-### 决策/产出
-- <具体产出或评分>
-
-### 下一步
-- 状态：<status>
+```
+Spec-Reviewer    Quality-Reviewer    Action
+─────────────────────────────────────────────────
+PASS             PROCEED            → done
+PASS             FIX-CRITICAL       → dev (fix Critical)
+PASS             FIX-ALL            → dev (fix Important too)
+FAIL             any                → dev (fix spec gaps first)
 ```
 
-## 安全约束
+## Systematic Debugging Triggers
 
-- 每个任务独立目录，UUID 隔离。
-- 禁止跨任务读取 `tasks/<other-uuid>/`。
-- 禁止在 `task.md` 中追加内容（它是只读源头）。
+- Dual-Reviewer finds bug during dev_review
+- Tests fail during implementation
+- User reports unexpected behavior mid-flow
+
+## Finishing Branch Triggers
+
+- Status reaches `done`
+- Tests must pass before presenting options
+- Exactly 4 options presented (merge/PR/keep/discard)
+
+## Handoff File Locations
+
+| Role | Output File |
+|------|-------------|
+| Scheduler | `handoff/scheduler.md` |
+| Brainstormer | `handoff/brainstormer.md` + `tasks/<uuid>/design.md` |
+| Spec-Reviewer (design) | `handoff/spec-reviewer.md` |
+| Planner | `handoff/planner.md` + `tasks/<uuid>/plan.md` |
+| Spec-Reviewer (plan) | `handoff/plan-reviewer.md` |
+| Developer | `handoff/developer.md` |
+| Dual-Reviewer | `handoff/dual-reviewer.md` |
+| Systematic Debugger | `handoff/debug.md` |
+| Finishing Branch | `handoff/finish.md` |
+
+## Force-Pass Policy
+
+After 3 rejections in any phase:
+- Force-pass regardless of score/verdict
+- Annotate risk in reviewer output
+- Note: "3rd review — force-passed due to iteration limit"
+- Log to `handoff/force-pass-risks.md` for post-mortem
+
+## Do NOT
+
+- Skip brainstorm for creative work (hard gate)
+- Skip tests before finishing branch
+- Bundle unrelated refactoring in any phase
+- Use placeholders ("TBD", "TODO", "similar to Task N")
+- Present open-ended questions at finishing branch
+- Delete work without typed confirmation
