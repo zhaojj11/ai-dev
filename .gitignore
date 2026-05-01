@@ -18,3 +18,6 @@ __pycache__/
 # 子 repo 平铺目录（各 repo 独立 clone，不纳入本仓库追踪）
 /repos/*
 !/repos/.gitkeep
+
+# Agent 任务数据（由 multi-agent-dev skill 自动生成）
+/tasks/*
